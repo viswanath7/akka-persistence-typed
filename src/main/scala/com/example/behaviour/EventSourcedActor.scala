@@ -9,10 +9,12 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import com.example.domain.StoryType.{Best, New, Top}
 import com.example.domain._
+import com.example.serialisation.CborSerializable
 import com.example.service.HackerNewsService._
+import com.typesafe.scalalogging.LazyLogging
 import shapeless.LabelledGeneric
 
-object MyPersistentBehaviour {
+object EventSourcedActor extends LazyLogging with CborSerializable {
 
   /**
    * Generates a stable unique identifier for the persistent actor
@@ -34,22 +36,30 @@ object MyPersistentBehaviour {
    */
   def onCommand: (State, Command) => Effect[Event, State] = {
 
-    def processCommand[E <: Event](number:PositiveIntUpto20, fn: PositiveIntUpto20 => IO[List[HackerNewsStory]] )(implicit labelledGeneric: LabelledGeneric[E]): Effect[Event, State] = {
-      def fetchNews: List[News] = fn(number).unsafeRunSync().map(hns => News(hns.title, hns.url))
+    def processCommand[E <: Event](number:PositiveIntUpto20, fn: PositiveIntUpto20 => IO[List[HackerNewsStory]] )
+                                  (implicit labelledGeneric: LabelledGeneric[E]): Effect[Event, State] = {
+      def fetchNews: List[News] = fn(number).unsafeRunSync().map(hns => News(hns.title, hns.url, hns.text))
       val news = fetchNews
-      if(news.isEmpty) Effect.none
-      else Effect.persist( (LocalDate.now(), NonEmptyList fromListUnsafe news).toCaseClass[E]).thenNoReply()
+      logger info s"Fetched news ${news.mkString(", ")}"
+
+      if(news.isEmpty)
+        Effect.none
+      else {
+        val event = (LocalDate.now(), NonEmptyList fromListUnsafe news).toCaseClass[E]
+        Effect.persist(event).thenNoReply()
+      }
     }
 
     (currentState, incomingCommand) => {
+
       def handleIncomingCommand: Effect[Event, State] = {
         incomingCommand match {
+          case ShutDown => Effect.stop()
           case FetchTopStories(numberOfItems) => processCommand[TopStoriesFetched](numberOfItems, topStories)
           case FetchNewStories(numberOfItems) => processCommand[NewStoriesFetched](numberOfItems, newStories)
           case FetchBestStories(numberOfItems) => processCommand[BestStoriesFetched](numberOfItems, bestStories)
         }
       }
-
       def identifyStoryTypeFetchSize: (StoryType, Int) = incomingCommand match {
         case FetchTopStories(num) => (Top, num.value)
         case FetchNewStories(num) => (New, num.value)
@@ -58,6 +68,7 @@ object MyPersistentBehaviour {
 
       currentState match {
         case EmptyState => handleIncomingCommand
+        case PopulatedState(_) if incomingCommand == ShutDown => Effect.stop()
         case PopulatedState(data) =>
           val storyTypeFetchSize = identifyStoryTypeFetchSize
           // Handle the command only if the state doesn't already contain the required number of items for indicated type

@@ -4,7 +4,7 @@ version := "0.1"
 
 scalaVersion := "2.13.1"
 
-lazy val akkaVersion = "2.6.4"
+lazy val akkaVersion = "2.6.6"
 lazy val catsVersion = "2.1.1"
 lazy val circeVersion = "0.13.0"
 lazy val enumeratumVersion = "1.6.0"
@@ -26,6 +26,7 @@ val cats = Seq(
 
 val akka = Seq(
 "com.typesafe.akka" %% "akka-actor-typed",
+"com.typesafe.akka" %% "akka-serialization-jackson",
 "com.typesafe.akka" %% "akka-persistence-typed",
 "com.typesafe.akka" %% "akka-cluster-typed",
 "com.typesafe.akka" %% "akka-stream-typed"
@@ -71,6 +72,8 @@ libraryDependencies ++= cats ++ akka ++ circe ++ enumeratum ++ sttp ++ refined +
     "com.chuusai" %% "shapeless" % shapelessVersion,
     "io.monix" %% "monix" % monixVersion,
     "io.chrisdavenport" %% "fuuid" % fUUIDVersion,
+    "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8",
+    "org.iq80.leveldb" % "leveldb" % "0.12",
     "ch.qos.logback" % "logback-classic" % logbackVersion,
     "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingVersion) ++
   testDependencies

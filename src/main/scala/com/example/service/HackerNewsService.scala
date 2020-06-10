@@ -6,17 +6,17 @@ import cats.Eval
 import cats.effect.{ContextShift, IO}
 import com.example.domain._
 import com.example.domain.exception.HTTPClientException
-import eu.timepit.refined.auto._
 import io.circe._
 import sttp.client.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import sttp.client.circe._
 import sttp.client.{ResponseError, asStringAlways, basicRequest}
 import sttp.model.Uri
 import com.example.domain.StoryType._
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.language.implicitConversions
 
-object HackerNewsService {
+object HackerNewsService extends LazyLogging {
 
   private[this] val configuration = Eval.later {
     import com.typesafe.config.ConfigFactory
@@ -28,11 +28,13 @@ object HackerNewsService {
   } yield conf.getString("backend.service.baseURL")
 
   private def retrieveStories(storyType: StoryType, numberOfItems: PositiveIntUpto20): IO[List[HackerNewsStory]] = {
-
+    logger debug s"Fetching ${numberOfItems.value} '$storyType' stories from hacker news ..."
     implicit val contextShift: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.global)
 
     implicit def liftEither[T](input: IO[Either[ResponseError[Error], T]]): IO[T] =
       input.flatMap(responseErrorOrResult => {
+        if (responseErrorOrResult.isLeft)
+          logger error (s"Failed to fetch story!", responseErrorOrResult.swap.getOrElse(new RuntimeException("Failed to fetch story!")))
         import cats.syntax.either._
         IO.fromEither(responseErrorOrResult leftMap (HTTPClientException(_)))
       })
@@ -55,15 +57,13 @@ object HackerNewsService {
       }
 
       import io.circe.parser._
-      for {
+      val listOfIdentifiers: IO[List[Int]] = for {
         serviceURL <- IO(createServiceURL(storyType))
         rawIdentifiers <- fetchTextResponse(new URI(serviceURL))
         json <- IO.fromEither(parse(rawIdentifiers))
-        listOfIdentifiers <- IO.fromEither(json.as[LazyList[Int]])
+        listOfIdentifiers <- IO.fromEither(json.as[List[Int]])
       } yield listOfIdentifiers
-        .map(listOfIdentifiers.take(numberOfItems))
-        .map(id => s"${baseURL.value}/item/$id.json?print=pretty")
-        .toList
+      listOfIdentifiers.map(list => list.take(numberOfItems.value).map(id => s"${baseURL.value}/item/$id.json?print=pretty"))
     }
 
     /**
@@ -73,7 +73,7 @@ object HackerNewsService {
      * @return List of hack rank stories' details.
      */
     def fetchStories(storyURLs: List[String]): IO[List[HackerNewsStory]] = {
-
+      logger debug s"Fetching stories from URLs ${storyURLs.mkString("\n", "\n", "\n")}"
       def fetchJSONResponse[T <: Product](url: URI)(implicit evidence: Decoder[T]): IO[T] =
         AsyncHttpClientCatsBackend[IO]().flatMap { implicit backend =>
           basicRequest
@@ -88,12 +88,11 @@ object HackerNewsService {
       import monix.eval._
       import monix.reactive._
       import monix.execution.Scheduler.Implicits.global
-      import io.circe.refined._
-      import eu.timepit.refined.auto._
-      import io.circe.generic.auto._
       Observable.fromIterable(storyURLs)
         .mapParallelOrdered(8) {
-          storyURL => Task from fetchJSONResponse[HackerNewsStory](new URI(storyURL))
+          storyURL => {
+            Task from fetchJSONResponse[HackerNewsStory](new URI(storyURL))
+          }
         }.toListL.to[IO]
     }
 
