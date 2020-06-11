@@ -28,7 +28,7 @@ object HackerNewsService extends LazyLogging {
   } yield conf.getString("backend.service.baseURL")
 
   private def retrieveStories(storyType: StoryType, numberOfItems: PositiveIntUpto20): IO[List[HackerNewsStory]] = {
-    logger debug s"Fetching ${numberOfItems.value} '$storyType' stories from hacker news ..."
+    logger info s"Fetching ${numberOfItems.value} '$storyType' stories from hacker news ..."
     implicit val contextShift: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.global)
 
     implicit def liftEither[T](input: IO[Either[ResponseError[Error], T]]): IO[T] =

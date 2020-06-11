@@ -7,68 +7,60 @@ import com.example.domain.StoryType.{Best, New, Top}
 import com.example.domain._
 import com.example.serialisation.CborSerializable
 import com.typesafe.scalalogging.LazyLogging
-import eu.timepit.refined.numeric.Interval.Closed
+import monix.execution.Cancelable
 
-import scala.util.Random
+import scala.language.postfixOps
+import eu.timepit.refined.auto._
+
+case class FetchNews(numberOfItems: PositiveIntUpto20 = 3)
 
 object NewsApplication extends App with LazyLogging with CborSerializable {
 
-  def apply(): Behavior[Message] = Behaviors.setup { actorContext =>
+  def apply(): Behavior[FetchNews] = Behaviors.setup { actorContext =>
 
     actorContext.log.info("Creating a child 'EventSourcedActor' with name 'EventSourcedActor' ...")
     val eventSourcedActor = actorContext.spawn(EventSourcedActor(), "EventSourcedActor")
 
-    def randomCommand: Command = {
-      import eu.timepit.refined._
-      import eu.timepit.refined.auto._
+    def randomCommand(numItems: PositiveIntUpto20): Command = {
+      import scala.util.Random
       val random = new Random
       val randomStoryType = StoryType.values(random.nextInt(StoryType.values.length))
-      //FIXME:
-      val numberOfItems: PositiveIntUpto20 = refineV[Closed[1, 20]](random.between(1,7)).getOrElse(3)
       randomStoryType match {
-        case Top => FetchTopStories(numberOfItems)
-        case New => FetchNewStories(numberOfItems)
-        case Best => FetchBestStories(numberOfItems)
+        case Top => FetchTopStories(numItems)
+        case New => FetchNewStories(numItems)
+        case Best => FetchBestStories(numItems)
       }
     }
 
     Behaviors.receiveMessage { incomingMessage =>
-      logger.info(s"NewsApplication received message $incomingMessage...")
-      incomingMessage match {
-        case FetchNews => eventSourcedActor ! randomCommand
-        case Terminate => eventSourcedActor ! ShutDown
-      }
+      val command = randomCommand(incomingMessage.numberOfItems)
+      logger.info(s"Sending command '$command' to event sourced actor with path '${eventSourcedActor.path}' ...")
+      eventSourcedActor ! command
       Behaviors.same
     }
   }
 
-  logger.info("Creating the actor system ...")
-  val actorSystem: ActorSystem[Message] = ActorSystem(guardianBehavior = NewsApplication(), name = "news-actor-system")
+  logger.info("Creating the actor system 'news-actor-system' ...")
+  val actorSystem: ActorSystem[FetchNews] = ActorSystem(guardianBehavior = NewsApplication(), name = "news-actor-system")
 
-  import monix.eval._
-  import monix.execution.Scheduler.Implicits.global
+  def sendMessages(messages: Seq[FetchNews]): Cancelable = {
+    import monix.execution.Cancelable
+    import monix.execution.Scheduler.{global => scheduler}
+    import scala.concurrent.duration._
+    @scala.annotation.tailrec
+    def sendMessageToActor(messagesToActor: Seq[FetchNews]): Cancelable = messagesToActor match {
+         case Nil =>
+           Thread.sleep(10000)
+           logger.info("No more messages to send")
+           logger.info("Terminating actor system ...")
+           Cancelable(() => actorSystem.terminate())
+         case head :: tail =>
+           logger.info(s"Sending message $head")
+           scheduler.scheduleOnce( 2 second) (actorSystem ! head)
+           sendMessageToActor(tail)
+       }
+    sendMessageToActor(messages)
+  }
 
-  // Create a list of tasks where each task sends a message
-  val independentTasks = List(FetchNews, FetchNews, FetchNews, FetchNews, FetchNews)
-    .map(msg => Task {actorSystem ! msg} )
-
-
-
-  // Execute the tasks in parallel and upon completion, terminate the actor system
-  Task.gather(independentTasks)
-//
-//    .doOnFinish(possibleError =>
-//      possibleError
-//        .toLeft("")
-//        .fold(error => {
-//          logger.error("Task to fetch news completed with error!", error)
-//          Task raiseError error
-//        }, _ => Task.unit)
-//        .map(_=> {
-//          logger.info("Terminating actor system ...")
-//          actorSystem.terminate()
-//        }))
-//
-    .runAsyncAndForget
-
+  sendMessages(List(FetchNews(), FetchNews(), FetchNews(), FetchNews(), FetchNews()))
 }

@@ -1,7 +1,6 @@
 package com.example.domain
 
 import cats.syntax.either._
-import eu.timepit.refined.{cats, _}
 import eu.timepit.refined.auto._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.{NonNegative, Positive}
@@ -23,7 +22,6 @@ final case class HackerNewsStory(by:NonEmptyString,
 object HackerNewsStory {
   import io.circe.refined._
   import eu.timepit.refined.auto._
-  import io.circe.generic.auto._
   implicit val decoder: Decoder[HackerNewsStory] = {
     (hCursor: HCursor) => for {
       by <- hCursor.downField("by").as[NonEmptyString]

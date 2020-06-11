@@ -40,7 +40,9 @@ object EventSourcedActor extends LazyLogging with CborSerializable {
                                   (implicit labelledGeneric: LabelledGeneric[E]): Effect[Event, State] = {
       def fetchNews: List[News] = fn(number).unsafeRunSync().map(hns => News(hns.title, hns.url, hns.text))
       val news = fetchNews
-      logger info s"Fetched news ${news.mkString(", ")}"
+      logger info s"Fetched news ${news
+        .map{ n=> s"Title: ${n.title},  Detail: ${n.link.getOrElse(n.title)}"  }
+        .mkString("\n", "\n", "\n")}"
 
       if(news.isEmpty)
         Effect.none
@@ -51,7 +53,7 @@ object EventSourcedActor extends LazyLogging with CborSerializable {
     }
 
     (currentState, incomingCommand) => {
-
+      logger.info(s"Processing command $incomingCommand. Current state: $currentState")
       def handleIncomingCommand: Effect[Event, State] = {
         incomingCommand match {
           case ShutDown => Effect.stop()
@@ -71,10 +73,15 @@ object EventSourcedActor extends LazyLogging with CborSerializable {
         case PopulatedState(_) if incomingCommand == ShutDown => Effect.stop()
         case PopulatedState(data) =>
           val storyTypeFetchSize = identifyStoryTypeFetchSize
+          logger info s"Checking if ${storyTypeFetchSize._2} ${storyTypeFetchSize._1} stories have to be fetched ..."
+          logger info s"Number of pre-existing news items: ${data.get((storyTypeFetchSize._1, LocalDate.now())).map(_.size).getOrElse(0)}"
           // Handle the command only if the state doesn't already contain the required number of items for indicated type
-          if(data.get( (storyTypeFetchSize._1, LocalDate.now()) ).exists(newsItems => newsItems.size < storyTypeFetchSize._2))
+          if(data.get((storyTypeFetchSize._1, LocalDate.now())).map(_.size).getOrElse(0)<storyTypeFetchSize._2) {
             handleIncomingCommand
-          else Effect.none
+          } else {
+            logger info s"Discarding command $incomingCommand"
+            Effect.none
+          }
       }
 
     }
@@ -89,14 +96,16 @@ object EventSourcedActor extends LazyLogging with CborSerializable {
    */
   def onEvent:(State, Event) => State = {
     (currentState, persistedEvent) => {
-
+      logger.info(s"Handling event ${persistedEvent.getClass.getSimpleName}. Current state: $currentState")
       def identifyStoryType: StoryType = persistedEvent match {
         case _: TopStoriesFetched => Top
         case _: NewStoriesFetched => New
         case _: BestStoriesFetched => Best
       }
-      //TODO: Reset state with reset command ?
-      PopulatedState().withLatestNews(identifyStoryType, persistedEvent.date, persistedEvent.stories)
+      currentState match {
+        case EmptyState => PopulatedState().withLatestNews(identifyStoryType, persistedEvent.date, persistedEvent.stories)
+        case state: PopulatedState =>  state.withLatestNews(identifyStoryType, persistedEvent.date, persistedEvent.stories)
+      }
     }
 
   }
