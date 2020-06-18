@@ -10,13 +10,10 @@ import com.typesafe.scalalogging.LazyLogging
 import monix.execution.Cancelable
 
 import scala.language.postfixOps
-import eu.timepit.refined.auto._
-
-case class FetchNews(numberOfItems: PositiveIntUpto20 = 3)
 
 object NewsApplication extends App with LazyLogging with CborSerializable {
 
-  def apply(): Behavior[FetchNews] = Behaviors.setup { actorContext =>
+  def apply(): Behavior[Message] = Behaviors.setup { actorContext =>
 
     actorContext.log.info("Creating a child 'EventSourcedActor' with name 'EventSourcedActor' ...")
     val eventSourcedActor = actorContext.spawn(EventSourcedActor(), "EventSourcedActor")
@@ -26,17 +23,22 @@ object NewsApplication extends App with LazyLogging with CborSerializable {
       val random = new Random
       val randomStoryType = StoryType.values(random.nextInt(StoryType.values.length))
       randomStoryType match {
-        case Top => FetchTopStories(numItems)
-        case New => FetchNewStories(numItems)
-        case Best => FetchBestStories(numItems)
+        case Top => FetchTopStories(numItems, actorContext.self)
+        case New => FetchNewStories(numItems, actorContext.self)
+        case Best => FetchBestStories(numItems, actorContext.self)
       }
     }
 
-    Behaviors.receiveMessage { incomingMessage =>
-      val command = randomCommand(incomingMessage.numberOfItems)
-      logger.info(s"Sending command '$command' to event sourced actor with path '${eventSourcedActor.path}' ...")
-      eventSourcedActor ! command
-      Behaviors.same
+    Behaviors.receiveMessage {
+      case FetchNews(numberOfItems) =>
+        val command = randomCommand(numberOfItems)
+        logger.info(s"Sending command '$command' to event sourced actor with path '${eventSourcedActor.path}' ...")
+        eventSourcedActor ! command
+        Behaviors.same
+      case fetchedNews: FetchedNews =>
+        import cats.implicits._
+        logger info s"Received response: ${fetchedNews.show}"
+        Behaviors.same
     }
   }
 

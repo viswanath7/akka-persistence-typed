@@ -1,10 +1,12 @@
 package com.example.domain
 
 import java.time.LocalDate
+
 import cats.data.NonEmptyList
+import com.example.serialisation.CborSerializable
 
 // Types of events the persistence actor is allowed to emit when processing a successfully validated command
-sealed trait Event {
+sealed trait Event extends CborSerializable {
   def date:LocalDate
   def stories: NonEmptyList[News]
 }

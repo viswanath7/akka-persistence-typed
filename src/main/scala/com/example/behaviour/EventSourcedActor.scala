@@ -8,7 +8,7 @@ import akka.persistence.typed.scaladsl.Effect
 import cats.data.NonEmptyList
 import cats.effect.IO
 import com.example.domain.StoryType.{Best, New, Top}
-import com.example.domain._
+import com.example.domain.{StoryCommand, _}
 import com.example.serialisation.CborSerializable
 import com.example.service.HackerNewsService._
 import com.typesafe.scalalogging.LazyLogging
@@ -36,36 +36,37 @@ object EventSourcedActor extends LazyLogging with CborSerializable {
    */
   def onCommand: (State, Command) => Effect[Event, State] = {
 
-    def processCommand[E <: Event](number:PositiveIntUpto20, fn: PositiveIntUpto20 => IO[List[HackerNewsStory]] )
-                                  (implicit labelledGeneric: LabelledGeneric[E]): Effect[Event, State] = {
-      def fetchNews: List[News] = fn(number).unsafeRunSync().map(hns => News(hns.title, hns.url, hns.text))
-      val news = fetchNews
-      logger info s"Fetched news ${news
-        .map{ n=> s"Title: ${n.title},  Detail: ${n.link.getOrElse(n.title)}"  }
-        .mkString("\n", "\n", "\n")}"
-
-      if(news.isEmpty)
-        Effect.none
-      else {
-        val event = (LocalDate.now(), NonEmptyList fromListUnsafe news).toCaseClass[E]
-        Effect.persist(event).thenNoReply()
-      }
-    }
-
     (currentState, incomingCommand) => {
       logger.info(s"Processing command $incomingCommand. Current state: $currentState")
       def handleIncomingCommand: Effect[Event, State] = {
+
+        def processCommand[E <: Event](storyType: StoryType, command: StoryCommand, fn: PositiveIntUpto20 => IO[List[HackerNewsStory]] )
+                                      (implicit labelledGeneric: LabelledGeneric[E]): Effect[Event, State] = {
+          def fetchNews: List[News] = fn(command.numberOfItems).unsafeRunSync().map(hns => News(hns.title, hns.url, hns.text))
+          val news = fetchNews
+          logger info s"Fetched news ${news
+            .map{ n=> s"Title: ${n.title},  Detail: ${n.link.getOrElse(n.title)}"  }
+            .mkString("\n", "\n", "\n")}"
+          if(news.isEmpty)
+            Effect.none.thenReply(command.sender)(_ => FetchedNews(storyType))
+          else {
+            val event = (LocalDate.now(), NonEmptyList fromListUnsafe news).toCaseClass[E]
+            Effect.persist(event).thenReply(command.sender)( _ => FetchedNews(storyType, news) )
+          }
+        }
+
         incomingCommand match {
           case ShutDown => Effect.stop()
-          case FetchTopStories(numberOfItems) => processCommand[TopStoriesFetched](numberOfItems, topStories)
-          case FetchNewStories(numberOfItems) => processCommand[NewStoriesFetched](numberOfItems, newStories)
-          case FetchBestStories(numberOfItems) => processCommand[BestStoriesFetched](numberOfItems, bestStories)
+          case cmd:FetchTopStories => processCommand[TopStoriesFetched](Top, cmd, topStories)
+          case cmd:FetchNewStories => processCommand[NewStoriesFetched](New, cmd, newStories)
+          case cmd:FetchBestStories => processCommand[BestStoriesFetched](Best, cmd, bestStories)
         }
+
       }
       def identifyStoryTypeFetchSize: (StoryType, Int) = incomingCommand match {
-        case FetchTopStories(num) => (Top, num.value)
-        case FetchNewStories(num) => (New, num.value)
-        case FetchBestStories(num) => (Best, num.value)
+        case FetchTopStories(num, _) => (Top, num.value)
+        case FetchNewStories(num, _) => (New, num.value)
+        case FetchBestStories(num, _) => (Best, num.value)
       }
 
       currentState match {
@@ -86,7 +87,6 @@ object EventSourcedActor extends LazyLogging with CborSerializable {
 
     }
   }
-
 
   /**
    * Defines how a new state is created by applying the successfully persisted event to the current state

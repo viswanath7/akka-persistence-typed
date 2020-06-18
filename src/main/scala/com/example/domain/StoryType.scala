@@ -1,5 +1,6 @@
 package com.example.domain
 
+import cats.Show
 import enumeratum._
 import eu.timepit.refined.types.string.NonEmptyString
 import com.example._
@@ -20,4 +21,6 @@ object StoryType extends Enum[StoryType] with CirceEnum[StoryType] {
   case object Best  extends StoryType {
     override def urlPath: NonEmptyString = "/beststories.json?print=pretty".toNonEmptyString
   }
+
+  implicit val showStoryType: Show[StoryType] = Show.show(storyType => storyType.entryName)
 }

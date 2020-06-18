@@ -74,6 +74,7 @@ libraryDependencies ++= cats ++ akka ++ circe ++ enumeratum ++ sttp ++ refined +
     "io.chrisdavenport" %% "fuuid" % fUUIDVersion,
     "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8",
     "org.iq80.leveldb" % "leveldb" % "0.12",
+    "org.typelevel" %% "kittens" % "2.1.0",
     "ch.qos.logback" % "logback-classic" % logbackVersion,
     "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingVersion) ++
   testDependencies

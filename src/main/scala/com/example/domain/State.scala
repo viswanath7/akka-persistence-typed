@@ -3,8 +3,9 @@ package com.example.domain
 import java.time.LocalDate
 
 import cats.data.NonEmptyList
+import com.example.serialisation.CborSerializable
 
-sealed trait State
+sealed trait State extends CborSerializable
 
 case object EmptyState extends State
 
