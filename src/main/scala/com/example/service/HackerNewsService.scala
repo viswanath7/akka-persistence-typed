@@ -11,12 +11,15 @@ import sttp.client.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import sttp.client.circe._
 import sttp.client.{ResponseError, asStringAlways, basicRequest}
 import sttp.model.Uri
-import com.example.domain.StoryType._
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.language.implicitConversions
 
-object HackerNewsService extends LazyLogging {
+trait NewsService {
+  def retrieveStories(storyType: StoryType)(numberOfItems: PositiveIntUpto20): IO[List[HackerNewsStory]]
+}
+
+object HackerNewsService extends NewsService with LazyLogging {
 
   private[this] val configuration = Eval.later {
     import com.typesafe.config.ConfigFactory
@@ -27,7 +30,7 @@ object HackerNewsService extends LazyLogging {
     conf <- configuration
   } yield conf.getString("backend.service.baseURL")
 
-  private def retrieveStories(storyType: StoryType, numberOfItems: PositiveIntUpto20): IO[List[HackerNewsStory]] = {
+  def retrieveStories(storyType: StoryType)(numberOfItems: PositiveIntUpto20): IO[List[HackerNewsStory]] = {
     logger info s"Fetching ${numberOfItems.value} '$storyType' stories from hacker news ..."
     implicit val contextShift: ContextShift[IO] = IO.contextShift(scala.concurrent.ExecutionContext.global)
 
@@ -103,9 +106,5 @@ object HackerNewsService extends LazyLogging {
       stories <- fetchStories(storyURLs)
     } yield stories
   }
-
-  def topStories(n: PositiveIntUpto20): IO[List[HackerNewsStory]] = retrieveStories(Top, n)
-  def newStories(n: PositiveIntUpto20): IO[List[HackerNewsStory]] = retrieveStories(New, n)
-  def bestStories(n: PositiveIntUpto20): IO[List[HackerNewsStory]] = retrieveStories(Best, n)
 
 }

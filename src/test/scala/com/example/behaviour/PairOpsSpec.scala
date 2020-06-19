@@ -7,7 +7,7 @@ import eu.timepit.refined.auto._
 import org.scalatest.flatspec.AsyncFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
-class PairOpsTest extends AsyncFlatSpecLike with Matchers{
+class PairOpsSpec extends AsyncFlatSpecLike with Matchers{
 
   "A pair of local date and non empty list of news" should "be converted to an event type" in {
     val localDate = LocalDate.now()

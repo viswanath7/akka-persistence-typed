@@ -18,6 +18,7 @@ lazy val sttpVersion = "2.1.1"
 lazy val scalaTestVersion = "3.1.1"
 
 val scalaCheckVersion = "1.14.3"
+val scalaCheckToolboxVersion = "0.3.5"
 
 val cats = Seq(
 "org.typelevel" %% "cats-core",
@@ -35,36 +36,42 @@ val akka = Seq(
 ).map(_ % akkaVersion % Test)
 
 val circe = Seq(
-  "io.circe" %% "circe-core",
-  "io.circe" %% "circe-generic",
-  "io.circe" %% "circe-parser",
-  "io.circe" %% "circe-refined"
+"io.circe" %% "circe-core",
+"io.circe" %% "circe-generic",
+"io.circe" %% "circe-parser",
+"io.circe" %% "circe-refined"
 ).map(_ % circeVersion)
 
 val enumeratum = Seq(
-  "com.beachape" %% "enumeratum",
-  "com.beachape" %% "enumeratum-circe"
+"com.beachape" %% "enumeratum",
+"com.beachape" %% "enumeratum-circe"
 ).map(_ % enumeratumVersion)
 
 val refined = Seq(
-  "eu.timepit" %% "refined",
-  "eu.timepit" %% "refined-cats",
-  "eu.timepit" %% "refined-scalacheck",
-  "eu.timepit" %% "refined-shapeless",
+"eu.timepit" %% "refined",
+"eu.timepit" %% "refined-cats",
+"eu.timepit" %% "refined-scalacheck",
+"eu.timepit" %% "refined-shapeless",
 ).map(_ % refinedVersion)
 
 val sttp = Seq (
-  "com.softwaremill.sttp.client"  %% "core",
-  "com.softwaremill.sttp.client"  %% "async-http-client-backend-cats",
-  "com.softwaremill.sttp.client"  %% "slf4j-backend",
-  "com.softwaremill.sttp.client"  %% "circe"
+"com.softwaremill.sttp.client"  %% "core",
+"com.softwaremill.sttp.client"  %% "async-http-client-backend-cats",
+"com.softwaremill.sttp.client"  %% "slf4j-backend",
+"com.softwaremill.sttp.client"  %% "circe"
 ).map(_ % sttpVersion)
 
 val testDependencies = Seq(
   "org.scalatest" %% "scalatest" % scalaTestVersion ,
   "org.scalacheck" %% "scalacheck" % scalaCheckVersion,
   "org.typelevel" %% "cats-testkit" % catsVersion,
-  "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion)
+  "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion,
+  "com.github.mifmif" % "generex" % "1.0.2",
+  "com.github.alexarchambault" %% "scalacheck-shapeless_1.14" % "1.2.5",
+  "com.47deg" %% "scalacheck-toolbox-datetime" % scalaCheckToolboxVersion,
+  "com.47deg" %% "scalacheck-toolbox-magic" % scalaCheckToolboxVersion,
+  "com.47deg" %% "scalacheck-toolbox-combinators" % scalaCheckToolboxVersion
+)
   .map(_ % Test)
 
 libraryDependencies ++= cats ++ akka ++ circe ++ enumeratum ++ sttp ++ refined ++

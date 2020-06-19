@@ -6,6 +6,7 @@ import com.example.behaviour.EventSourcedActor
 import com.example.domain.StoryType.{Best, New, Top}
 import com.example.domain._
 import com.example.serialisation.CborSerializable
+import com.example.service.HackerNewsService
 import com.typesafe.scalalogging.LazyLogging
 import monix.execution.Cancelable
 
@@ -16,7 +17,7 @@ object NewsApplication extends App with LazyLogging with CborSerializable {
   def apply(): Behavior[Message] = Behaviors.setup { actorContext =>
 
     actorContext.log.info("Creating a child 'EventSourcedActor' with name 'EventSourcedActor' ...")
-    val eventSourcedActor = actorContext.spawn(EventSourcedActor(), "EventSourcedActor")
+    val eventSourcedActor = actorContext.spawn(EventSourcedActor createWith HackerNewsService, "EventSourcedActor")
 
     def randomCommand(numItems: PositiveIntUpto20): Command = {
       import scala.util.Random
